@@ -219,17 +219,11 @@ This CNN is small and convolution-heavy, so INT8 did not improve latency in this
 - Charts for latency and model size
 - GitHub Actions smoke tests
 
-## Resume relevance
-
-```latex
-\begin{itemize}
-    \item Built an end-to-end inference optimization pipeline that trains a lightweight PyTorch CNN on CIFAR-10, exports it to ONNX, validates ONNX Runtime outputs, and applies dynamic INT8 quantization.
-    \item Benchmarked PyTorch FP32, ONNX FP32, and ONNX INT8 inference on CPU across accuracy, latency, throughput, and model size, showing a 73\% ONNX INT8 size reduction with a latency trade-off.
-\end{itemize}
-```
-
-## 60-second explanation
+## Summary
 
 I built EdgeVision Benchmark to practice the part of machine learning that happens after training. I trained a small CNN on CIFAR-10 in PyTorch, saved the checkpoint, exported the model to ONNX, validated that ONNX Runtime produced matching predictions, and then created a dynamically quantized INT8 ONNX version.
 
 For benchmarking, I used the same preloaded CIFAR-10 test subset across all three formats and measured only the actual inference calls after warm-up. In the CPU benchmark, ONNX FP32 was the fastest runtime. INT8 reduced the model size by about 73%, but it was slower than ONNX FP32 and had a small accuracy drop. The main lesson was that quantization is a trade-off to measure, not something to assume will always improve latency.
+
+## Author
+Anshuman Anand Nayak
