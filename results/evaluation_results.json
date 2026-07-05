@@ -1,0 +1,11 @@
+{
+  "model_path": "models\\cnn_cifar10.pth",
+  "dataset": "CIFAR-10",
+  "num_samples": 10000,
+  "correct": 7384,
+  "accuracy": 0.7384,
+  "accuracy_percent": 73.83999999999999,
+  "batch_size": 64,
+  "device": "cpu",
+  "seed": 42
+}

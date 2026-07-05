@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke-test:
+    name: Compile and smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile source
+        run: python -m compileall src
+
+      - name: Run model artifact smoke test
+        run: python tests/smoke_test.py
+
+      - name: Generate report if result files exist
+        shell: bash
+        run: |
+          if [[ -f results/benchmark_results.json && -f results/evaluation_results.json ]]; then
+            python src/generate_report.py
+          else
+            echo "Skipping report generation because result files are not present."
+          fi

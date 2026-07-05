@@ -1,0 +1,9 @@
+torch>=2.3,<3.0
+torchvision>=0.18,<1.0
+onnx>=1.16,<2.0
+onnxscript>=0.5,<1.0
+onnxruntime>=1.18,<2.0
+numpy>=1.26,<3.0
+pandas>=2.2,<3.0
+scikit-learn>=1.5,<2.0
+tqdm>=4.66,<5.0
