@@ -1,0 +1,19 @@
+name: "edgevision_cnn"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+input [
+  {
+    name: "input"
+    data_type: TYPE_FP32
+    dims: [3, 32, 32]
+  }
+]
+
+output [
+  {
+    name: "logits"
+    data_type: TYPE_FP32
+    dims: [10]
+  }
+]

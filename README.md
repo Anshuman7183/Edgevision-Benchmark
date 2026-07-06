@@ -153,6 +153,52 @@ Generate the Markdown report:
 python src/generate_report.py
 ```
 
+## EdgeVision TritonServe
+
+This repo also includes a practical Triton serving path for the exported FP32 ONNX model. Triton adds a Docker server, versioned model repository, `config.pbtxt`, HTTP health check, HTTP client inference, and a benchmark script that compares server-based inference against local ONNX Runtime.
+
+```text
+triton_model_repo/
+\---edgevision_cnn/
+    |   config.pbtxt
+    \---1/
+            model.onnx
+```
+
+Start NVIDIA Triton Inference Server from Windows PowerShell:
+
+```powershell
+docker run --rm -p 8000:8000 -p 8001:8001 -p 8002:8002 `
+  -v ${PWD}\triton_model_repo:/models `
+  nvcr.io/nvidia/tritonserver:24.10-py3 `
+  tritonserver --model-repository=/models
+```
+
+Check readiness and run one sample:
+
+```powershell
+python src/triton_health_check.py --url localhost:8000 --model-name edgevision_cnn
+python src/triton_client.py --url localhost:8000 --model-name edgevision_cnn --sample-index 0 --data-dir data
+```
+
+Run the Triton comparison benchmark:
+
+```powershell
+python src/triton_benchmark.py --url localhost:8000 --model-name edgevision_cnn --onnx-path models/cnn_cifar10.onnx --data-dir data --num-samples 500 --batch-size 1 --warmup-runs 20 --measured-runs 100 --seed 42
+python src/triton_benchmark.py --url localhost:8000 --model-name edgevision_cnn --onnx-path models/cnn_cifar10.onnx --data-dir data --num-samples 500 --batch-size 8 --warmup-runs 20 --measured-runs 100 --seed 42 --append-results
+```
+
+Saved Triton results show the ONNX model was served successfully with 100% request success. Local ONNX Runtime was faster than Triton-served ONNX in this local CPU benchmark. Triton is useful here as a serving layer, not as a claimed speedup.
+
+| Runtime | Batch | Samples | Accuracy | Avg ms/batch | P95 ms | Throughput samples/sec | Success |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Local ONNX Runtime FP32 | 1 | 500 | 77.60% | 0.491 | 0.152 | 2038.62 | 100.00% |
+| Triton-served ONNX FP32 | 1 | 500 | 77.60% | 1.352 | 5.696 | 739.44 | 100.00% |
+| Local ONNX Runtime FP32 | 8 | 500 | 77.60% | 0.670 | 1.602 | 11875.46 | 100.00% |
+| Triton-served ONNX FP32 | 8 | 500 | 77.60% | 25.356 | 54.619 | 313.92 | 100.00% |
+
+The Triton benchmark excludes server startup and dataset loading time. This was CPU-based Triton serving because no NVIDIA driver/GPU was detected locally. Full notes are in `reports/triton_serving_report.md`.
+
 ## Evaluation result
 
 Full PyTorch test-set evaluation from `results/evaluation_results.json`:

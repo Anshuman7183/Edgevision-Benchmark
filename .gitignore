@@ -55,3 +55,7 @@ Thumbs.db
 !results/benchmark_results.csv
 !results/benchmark_results.json
 !reports/benchmark_report.md
+# Local planning/context docs
+PRD.md
+PROJECT_CONTEXT.md
+TRITON_PRD.md
