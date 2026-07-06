@@ -1,27 +1,40 @@
 # EdgeVision Benchmark: PyTorch to ONNX Quantized Inference Pipeline
 
-This project trains a lightweight CNN on CIFAR-10, exports it to ONNX, applies ONNX Runtime dynamic INT8 quantization, and benchmarks PyTorch FP32 vs ONNX FP32 vs ONNX INT8 on CPU.
+EdgeVision Benchmark is a small ML systems project around one CIFAR-10 CNN: train it in PyTorch, export it to ONNX, quantize it, benchmark the local runtimes, then serve the FP32 ONNX model through NVIDIA Triton for comparison.
 
-## Why I built this
+I kept the model and dataset intentionally small so the whole workflow is easy to inspect, rerun, and review without waiting on a large training job.
 
-I built this to understand what happens after a model is trained. Training is only one part of the workflow; the model also has to be exported, validated in another runtime, quantized, benchmarked, and compared honestly.
+## What is included
 
-The goal was to keep the model small and the pipeline reproducible, then measure the trade-offs instead of assuming quantization would automatically make everything faster.
+### Local inference pipeline
 
-## What this project does
+- Train and evaluate a lightweight PyTorch CNN on CIFAR-10.
+- Export the checkpoint to ONNX FP32.
+- Validate ONNX Runtime output against PyTorch output.
+- Apply ONNX Runtime dynamic INT8 quantization.
+- Benchmark PyTorch FP32, ONNX FP32, and ONNX INT8 on CPU.
 
-- Trains a lightweight PyTorch CNN on CIFAR-10
-- Evaluates PyTorch accuracy
-- Exports the model to ONNX
-- Validates ONNX output against PyTorch output
-- Applies ONNX Runtime dynamic INT8 quantization
-- Benchmarks PyTorch FP32, ONNX FP32, and ONNX INT8
-- Saves CSV, JSON, and Markdown reports
+### Triton serving path
+
+- Package the FP32 ONNX model in a Triton model repository.
+- Serve it with NVIDIA Triton Inference Server in Docker.
+- Check server liveness, server readiness, and model readiness.
+- Send a single CIFAR-10 HTTP inference request with `tritonclient.http`.
+- Benchmark Triton-served ONNX FP32 against local ONNX Runtime FP32.
+
+### Reproducibility
+
+- Keep small model artifacts committed for smoke tests and review.
+- Save benchmark outputs as CSV/JSON.
+- Keep Markdown reports beside the measured artifacts.
+- Run a lightweight GitHub Actions smoke test without training or benchmarking.
 
 ## Pipeline
 
 ```text
-CIFAR-10 -> PyTorch CNN -> .pth checkpoint -> ONNX FP32 -> ONNX INT8 -> Benchmark -> Report
+CIFAR-10 -> PyTorch CNN -> ONNX FP32 -> ONNX INT8 -> Local Benchmark
+                              |
+                              +-> Triton Model Repo -> HTTP Inference -> Triton Benchmark
 ```
 
 ## Tech stack
@@ -31,35 +44,23 @@ CIFAR-10 -> PyTorch CNN -> .pth checkpoint -> ONNX FP32 -> ONNX INT8 -> Benchmar
 - torchvision
 - ONNX
 - ONNX Runtime
+- NVIDIA Triton Inference Server
+- Docker
 - NumPy
 - Pandas
 - scikit-learn
 - tqdm
 
-The current scripts mainly use PyTorch, torchvision, ONNX, ONNX Runtime, NumPy, CSV, and JSON. Pandas, scikit-learn, and tqdm are included in `requirements.txt` for analysis/reporting utilities and likely follow-up work.
+The current scripts mainly use PyTorch, torchvision, ONNX, ONNX Runtime, Triton HTTP client, NumPy, CSV, and JSON. Pandas, scikit-learn, and tqdm are also pinned in `requirements.txt`.
 
 ## Folder structure
 
 ```text
 Edgevision-Benchmark/
 |   .gitignore
-|   PRD.md
-|   PROJECT_CONTEXT.md
+|   docker-compose.yml
 |   README.md
 |   requirements.txt
-|
-+---data/
-|   |   cifar-10-python.tar.gz
-|   |
-|   \---cifar-10-batches-py/
-|           batches.meta
-|           data_batch_1
-|           data_batch_2
-|           data_batch_3
-|           data_batch_4
-|           data_batch_5
-|           readme.html
-|           test_batch
 |
 +---models/
 |       .gitkeep
@@ -71,27 +72,46 @@ Edgevision-Benchmark/
 +---reports/
 |       .gitkeep
 |       benchmark_report.md
+|       triton_serving_report.md
 |
 +---results/
 |       .gitkeep
 |       benchmark_results.csv
 |       benchmark_results.json
 |       evaluation_results.json
+|       triton_benchmark_results.csv
+|       triton_benchmark_results.json
 |
-\---src/
-        benchmark.py
-        data_loader.py
-        evaluate.py
-        export_onnx.py
-        generate_report.py
-        model.py
-        onnx_inference.py
-        quantize.py
-        train.py
-        utils.py
++---src/
+|       benchmark.py
+|       data_loader.py
+|       evaluate.py
+|       export_onnx.py
+|       generate_report.py
+|       model.py
+|       onnx_inference.py
+|       quantize.py
+|       train.py
+|       triton_benchmark.py
+|       triton_client.py
+|       triton_health_check.py
+|       utils.py
+|
++---tests/
+|       smoke_test.py
+|
+\---triton_model_repo/
+    \---edgevision_cnn/
+        |   config.pbtxt
+        \---1/
+                model.onnx
 ```
 
-`data/`, `models/*.pth`, `models/*.onnx`, and generated result/report files are produced by running the pipeline.
+Artifact policy:
+
+- `data/` is local and ignored. The scripts can download CIFAR-10 when needed, or you can place the archive there manually.
+- Small model artifacts in `models/` and `triton_model_repo/` are committed so smoke tests and review can run without retraining.
+- Benchmark results and Markdown reports are committed as evidence for the measured local runs.
 
 ## Setup on Windows
 
@@ -153,9 +173,13 @@ Generate the Markdown report:
 python src/generate_report.py
 ```
 
+## CI smoke test
+
+GitHub Actions runs `tests/smoke_test.py` through `.github/workflows/ci.yml`. The smoke test is intentionally lightweight: it checks core files and artifacts without training, downloading CIFAR-10, starting Triton, or running benchmarks.
+
 ## EdgeVision TritonServe
 
-This repo also includes a practical Triton serving path for the exported FP32 ONNX model. Triton adds a Docker server, versioned model repository, `config.pbtxt`, HTTP health check, HTTP client inference, and a benchmark script that compares server-based inference against local ONNX Runtime.
+The Triton path serves the exported FP32 ONNX model from a standard model repository. It uses Docker for the server, `config.pbtxt` for the model contract, HTTP checks for readiness, and a small Python client for inference.
 
 ```text
 triton_model_repo/
@@ -188,7 +212,7 @@ python src/triton_benchmark.py --url localhost:8000 --model-name edgevision_cnn 
 python src/triton_benchmark.py --url localhost:8000 --model-name edgevision_cnn --onnx-path models/cnn_cifar10.onnx --data-dir data --num-samples 500 --batch-size 8 --warmup-runs 20 --measured-runs 100 --seed 42 --append-results
 ```
 
-Saved Triton results show the ONNX model was served successfully with 100% request success. Local ONNX Runtime was faster than Triton-served ONNX in this local CPU benchmark. Triton is useful here as a serving layer, not as a claimed speedup.
+The saved Triton runs completed with 100% request success. Local ONNX Runtime was still faster in this local CPU setup, which is expected for a small model and single-client HTTP requests.
 
 | Runtime | Batch | Samples | Accuracy | Avg ms/batch | P95 ms | Throughput samples/sec | Success |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -246,7 +270,7 @@ Saved benchmark results from `results/benchmark_results.csv` and `results/benchm
 
 This project uses ONNX Runtime dynamic quantization. Dynamic quantization mainly targets supported weight-bearing operators such as `Linear`/`Gemm`.
 
-This CNN is small and convolution-heavy, so INT8 did not improve latency in this CPU test. That is an important deployment trade-off rather than a project failure: quantization results depend on model structure, runtime kernels, operator coverage, and the hardware being measured.
+This CNN is small and convolution-heavy, so INT8 did not improve latency in this CPU test. Quantization results depend on model structure, runtime kernels, operator coverage, and the hardware being measured.
 
 ## Limitations
 
@@ -263,13 +287,14 @@ This CNN is small and convolution-heavy, so INT8 did not improve latency in this
 - Larger model comparison
 - Hardware-specific benchmarking
 - Charts for latency and model size
-- GitHub Actions smoke tests
 
-## Summary
+## What I learned
 
-I built EdgeVision Benchmark to practice the part of machine learning that happens after training. I trained a small CNN on CIFAR-10 in PyTorch, saved the checkpoint, exported the model to ONNX, validated that ONNX Runtime produced matching predictions, and then created a dynamically quantized INT8 ONNX version.
+The useful work started after the model checkpoint existed: exporting, validating, quantizing, serving, and measuring each runtime with the same inputs.
 
-For benchmarking, I used the same preloaded CIFAR-10 test subset across all three formats and measured only the actual inference calls after warm-up. In the CPU benchmark, ONNX FP32 was the fastest runtime. INT8 reduced the model size by about 73%, but it was slower than ONNX FP32 and had a small accuracy drop. The main lesson was that quantization is a trade-off to measure, not something to assume will always improve latency.
+ONNX FP32 was the fastest local runtime in these CPU results. Dynamic INT8 made the model much smaller, but it was slower on this machine and had a small accuracy drop.
+
+Triton successfully served the ONNX model and gave a clean deployment shape: model repository, Docker server, health check, HTTP client, and benchmark script. In this CPU-only setup, Triton was slower than local ONNX Runtime, but it made the serving boundary explicit and testable.
 
 ## Author
 Anshuman Anand Nayak
